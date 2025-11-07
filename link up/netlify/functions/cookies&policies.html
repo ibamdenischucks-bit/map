@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms and Conditions</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .terms-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 500px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    h2 {
+      text-align: center;
+    }
+    .terms {
+      height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-bottom: 15px;
+    }
+    button {
+      width: 48%;
+      padding: 12px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 2px 1%;
+    }
+    .agree-btn {
+      background: #28a745;
+      color: #fff;
+    }
+    .agree-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .disagree-btn {
+      background: #dc3545;
+      color: #fff;
+    }
+    .disagree-btn:hover {
+      background: #c82333;
+    }
+  </style>
+</head>
+<body>
+  <div class="terms-box" id="termsContainer">
+    <h2>Terms and Conditions</h2>
+    <div class="terms" id="termsBox">
+      <p>
+        Welcome to our website. Before you continue, please read and accept the following terms and conditions.
+      </p>
+      <p>
+        1. You must use this website responsibly.<br>
+        2. Any misuse may lead to restrictions.<br>
+        3. We may update these terms anytime.<br>
+        4. By clicking "Agree", you consent to these rules.<br><br>      
+Grow your page like you never knew it             
+We promote pages on this website first of all u copy your page link on your device browser
+paste them when siging up on url section <a style="color:red;">note! any authoried or reported link will lead to dismissal</a>
+do well to engage and follow other users to get exprience points-XP (this section is compolsury if not complied your account will be removed and paid 
+promotions will be deactivated<br>
+   <a style="color:rgb(74, 74, 235);">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque at nunc vel sapien posuere
+        facilisis. Curabitur congue, nunc sit amet fermentum maximus, ligula libero dictum nulla, vel
+        interdum ipsum augue at erat. Vestibulum pharetra, ipsum a hendrerit mattis, libero urna
+        tincidunt massa, a aliquet nulla dolor ac felis. </a>
+      </p>
+    </div>
+    <div style="display:flex; justify-content: space-between;">
+      <button class="agree-btn" id="agreeBtn" disabled>I Agree</button>
+      <button class="disagree-btn" id="disagreeBtn">I Disagree</button>
+    </div>
+  </div>
+
+  <script>
+    const termsBox = document.getElementById("termsBox");
+    const agreeBtn = document.getElementById("agreeBtn");
+    const disagreeBtn = document.getElementById("disagreeBtn");
+
+    // Use relative path for main website
+    const mainWebsite = "signup.html";
+    const exitWebsite = "https://google.com";
+
+    // ✅ If already agreed, go straight to main site
+    if (localStorage.getItem("termsAgreed") === "true") {
+      window.location.href = mainWebsite;
+    }
+
+    // Enable "Agree" button when scrolled to bottom
+    termsBox.addEventListener("scroll", function () {
+      if (termsBox.scrollTop + termsBox.clientHeight >= termsBox.scrollHeight) {
+        agreeBtn.disabled = false;
+      }
+    });
+
+    // Agree button click
+    agreeBtn.addEventListener("click", function () {
+      localStorage.setItem("termsAgreed", "true"); // Save agreement
+      window.location.href = mainWebsite;
+    });
+
+    // Disagree button click
+    disagreeBtn.addEventListener("click", function () {
+      alert("You must agree to the terms to access the website.");
+      window.location.href = exitWebsite;
+    });
+  </script>
+</body>
+</html>
