@@ -1,0 +1,28 @@
+[build]
+  publish = "netlify/public"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.environment]
+  NODE_VERSION = "18"
+
+  [build]
+  publish = "netlify/public"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# ADD THIS TO DISABLE THE PLUGIN:
+[plugins]
+  package = "@netlify/plugin-visual-diff"
+  enabled = false

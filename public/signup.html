@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sign Up</title>
+  <style>
+    body{font-family:Inter,system-ui,Arial,sans-serif;background:#f3f6fb;margin:0;padding:20px}
+    .card{max-width:720px;margin:30px auto;background:white;padding:20px;border-radius:12px;box-shadow:0 6px 20px rgba(16,24,40,0.06)}
+    h2{margin:0 0 12px 0}
+    .paid-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+    .paid-card{padding:10px;border-radius:10px;border:1px solid #eef2ff;text-align:center}
+    .paid-card img{width:80px;height:80px;border-radius:12px;object-fit:cover}
+    .unlock-note{font-size:13px;color:#475569;margin-bottom:12px}
+    form{display:none;flex-direction:column;gap:10px;margin-top:8px}
+    input{padding:10px;border-radius:8px;border:1px solid #e6eef8}
+    button{padding:12px;border-radius:10px;border:none;background:#000000;color:white;cursor:pointer}
+    .btn-clicked{background:#000000;color:white}
+    .page-controls{margin-top:10px;display:flex;justify-content:center;gap:6px}
+    .small{font-size:13px;color:#6b7280}
+  </style>
+</head>
+<body>
+<div class="card">
+  <h2>Create Account</h2>
+  <p class="small">Before signing up you must click all account buttons of one randomly generated paid-users page (10 per page maximum). After clicking every listed paid account, the signup form will unlock.</p>
+
+  <div id="paidBlock">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <strong>Paid Users (Page <span id="pageNum">1</span>)</strong>
+      <div class="small">Click every account to unlock signup</div>
+    </div>
+    <div class="paid-grid" id="paidGrid"></div>
+    <div class="page-controls">
+      <button id="prevPage">Prev</button>
+      <button id="nextPage">Next</button>
+    </div>
+  </div>
+
+  <form id="signupForm" enctype="multipart/form-data">
+    <input id="name" placeholder="Full name" required>
+    <input id="url" placeholder="Profile URL (https://...)" required>
+    <input id="password" type="password" placeholder="Password" required>
+    <input id="photo" type="file" accept="image/*" required>
+    <button type="submit">Sign Up</button>
+    Already an account? <a href="login.html">Login</a>
+  </form>
+</div>
+
+<script>
+const API_BASE = window.location.hostname === 'localhost' 
+  ? 'http://localhost:8888/.netlify/functions' 
+  : '/.netlify/functions';
+
+const LS_CURRENT = "currentUser";
+const PER_PAGE = 10;
+
+let paidAll = [];
+let page = 0;
+let currentBatch = [];
+let clickedSet = new Set();
+
+/* API helper */
+async function apiCall(endpoint, options = {}) {
+  try {
+    const response = await fetch(`${API_BASE}/${endpoint}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+      },
+      ...options
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('API call failed:', error);
+    // Fallback to localStorage
+    return fallbackData(endpoint);
+  }
+}
+
+function fallbackData(endpoint) {
+  const lsData = {
+    'payments': {
+      pending: JSON.parse(localStorage.getItem("pendingPayments")) || [],
+      paid: JSON.parse(localStorage.getItem("paidUsers")) || []
+    }
+  };
+  
+  return lsData[endpoint] || {};
+}
+
+/* Load paid users */
+async function loadPaidUsers() {
+  try {
+    const payments = await apiCall('payments');
+    paidAll = payments.paid || [];
+    
+    if(paidAll.length === 0){
+      document.getElementById('signupForm').style.display = 'flex';
+      document.getElementById('paidBlock').style.display = 'none';
+    } else {
+      loadPage(0);
+    }
+  } catch (error) {
+    console.error('Failed to load paid users:', error);
+    document.getElementById('signupForm').style.display = 'flex';
+    document.getElementById('paidBlock').style.display = 'none';
+  }
+}
+
+function shuffleArray(a){ return a.slice().sort(()=>0.5 - Math.random()); }
+
+function loadPage(p){
+  const shuffled = shuffleArray(paidAll);
+  const pages = [];
+  for(let i=0;i<shuffled.length;i+=PER_PAGE) pages.push(shuffled.slice(i, i+PER_PAGE));
+  if(pages.length === 0){ currentBatch = []; return; }
+  if(p<0) p = 0;
+  if(p >= pages.length) p = pages.length -1;
+  page = p;
+  document.getElementById('pageNum').textContent = page+1;
+  currentBatch = pages[page];
+  renderBatch();
+}
+
+function renderBatch(){
+  clickedSet = new Set();
+  const grid = document.getElementById('paidGrid');
+  grid.innerHTML = '';
+  if(!currentBatch || currentBatch.length === 0){
+    grid.innerHTML = '<div class="small">No approved paid users yet.</div>';
+    document.getElementById('signupForm').style.display = 'flex';
+    return;
+  }
+  currentBatch.forEach((p, idx)=>{
+    const card = document.createElement('div');
+    card.className = 'paid-card';
+    card.innerHTML = `
+      <img src="${p.photo||'https://via.placeholder.com/80'}" alt="">
+      <div style="font-weight:800;margin-top:8px">${p.name}</div>
+      <div style="font-size:13px;color:#475569;margin:6px 0">${p.url}</div>
+      <button class="btnAccount" data-idx="${idx}">Account</button>
+    `;
+    grid.appendChild(card);
+  });
+
+  document.querySelectorAll('.btnAccount').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = Number(btn.dataset.idx);
+      const user = currentBatch[idx];
+      window.open(user.url, "_blank");
+      btn.classList.add('btn-clicked');
+      btn.disabled = true;
+      clickedSet.add(idx);
+      checkUnlock();
+    });
+  });
+}
+
+function checkUnlock(){
+  if(currentBatch.length > 0 && clickedSet.size === currentBatch.length){
+    document.getElementById('signupForm').style.display = 'flex';
+    alert("All paid accounts clicked — signup unlocked.");
+  }
+}
+
+/* pagination */
+document.getElementById('prevPage').addEventListener('click', ()=>{ loadPage(page-1); });
+document.getElementById('nextPage').addEventListener('click', ()=>{ loadPage(page+1); });
+
+/* handle signup submit */
+document.getElementById('signupForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  if(paidAll.length>0 && clickedSet.size !== currentBatch.length){
+    alert("You must click all paid accounts on the page before signing up.");
+    return;
+  }
+  const name = document.getElementById('name').value.trim();
+  const url = document.getElementById('url').value.trim();
+  const password = document.getElementById('password').value.trim();
+  const photoFile = document.getElementById('photo').files[0];
+  if(!name || !url || !password || !photoFile){ alert("Fill all fields"); return; }
+
+  const r = new FileReader();
+  r.onload = async function(ev){
+    const photo = ev.target.result;
+    
+    try {
+      // Save user via API
+      const result = await apiCall('users', {
+        method: 'POST',
+        body: JSON.stringify({ name, url, password, photo })
+      });
+      
+      if (result.success) {
+        // Save current user to localStorage
+        localStorage.setItem(LS_CURRENT, JSON.stringify({ name, url, password, photo }));
+        alert("Signup successful — redirecting to dashboard");
+        window.location.href = "index.html";
+      } else {
+        alert(result.error || "Signup failed. Please try again.");
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      // Fallback to localStorage
+      const users = JSON.parse(localStorage.getItem("users")) || [];
+      users.push({ name, url, password, photo, createdAt: new Date().toISOString() });
+      localStorage.setItem("users", JSON.stringify(users));
+      localStorage.setItem(LS_CURRENT, JSON.stringify({ name, url, password, photo }));
+      alert("Signup successful — redirecting to dashboard");
+      window.location.href = "index.html";
+    }
+  };
+  r.readAsDataURL(photoFile);
+});
+
+/* initial load */
+loadPaidUsers();
+</script>
+</body>
+</html>

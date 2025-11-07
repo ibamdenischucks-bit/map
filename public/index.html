@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Index — Dashboard</title>
+<style>
+  :root{--blue:#050505;--red:#d32f2f;--card:#ffffff;--bg:#f3f6fb}
+  body{font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);margin:0;padding:0}
+  header{background:var(--blue);color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center}
+  header h1{margin:0;font-size:18px}
+  header .actions{display:flex;gap:10px;align-items:center}
+  .container{max-width:1100px;margin:18px auto;padding:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+  .card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 6px 18px rgba(16,24,40,0.06);position:relative}
+  .card img{width:72px;height:72px;border-radius:12px;object-fit:cover}
+  .userinfo{display:flex;gap:12px;align-items:center}
+  .name{font-weight:700;margin:0}
+  .small{color:#6b7280;font-size:13px;margin:4px 0}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:10px}
+  .btn{padding:8px 12px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
+  .btn-primary{background:var(--blue);color:white}
+  .btn-clicked{background:#0b63b5;color:white}
+  .btn-report{background:var(--red);color:white}
+  .bottom-left-profile{position:fixed;left:20px;bottom:20px;background:var(--card);padding:10px;border-radius:12px;box-shadow:0 6px 18px rgba(16,24,40,0.08);display:flex;gap:12px;align-items:center}
+  .bottom-right-logout{position:fixed;right:20px;bottom:20px}
+  .xp{font-weight:700;color:#0f172a}
+  .rankline{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>𝓦𝓪𝓹𝓼 Dashboard</h1>
+  <div class="actions">
+    <button class="btn btn-primary" id="payBtn">Vip</button>
+    <button class="btn" id="toSignupBtn">Sign Up</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="rankline">
+    <div><strong>Logged in:</strong> <span id="currentName">—</span></div>
+    <div><strong>XP:</strong> <span id="currentXp">0</span></div>
+    <div><strong>Rank:</strong> <span id="currentRank">New</span></div>
+  </div>
+
+  <h2 style="margin:8px 0 12px 0">Follow users page to increase your XP</h2>
+  <div class="grid" id="usersGrid"></div>
+</div>
+
+<!-- profile bottom-left -->
+<div class="bottom-left-profile" id="profileBox" style="display:none">
+  <img id="profilePhoto" src="" width="56" height="56" style="border-radius:10px">
+  <div>
+    <div id="profileName" style="font-weight:800"></div>
+  </div>
+</div>
+
+<!-- logout bottom-right -->
+<div class="bottom-right-logout">
+  <button class="btn btn-report" id="logoutBtn">Logout</button>
+</div>
+
+<script>
+// API configuration
+const API_BASE = window.location.hostname === 'localhost' 
+  ? 'http://localhost:8888/.netlify/functions' 
+  : '/.netlify/functions';
+
+// Local storage keys
+const LS_CURRENT = "currentUser";
+
+// Global data
+let currentUser = JSON.parse(localStorage.getItem(LS_CURRENT)) || null;
+let users = [];
+let xpData = {};
+let clickedData = {};
+
+/* API helper functions */
+async function apiCall(endpoint, options = {}) {
+  try {
+    const response = await fetch(`${API_BASE}/${endpoint}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+      },
+      ...options
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('API call failed:', error);
+    // Fallback to localStorage
+    return fallbackData(endpoint);
+  }
+}
+
+// Fallback to localStorage if API is unavailable
+function fallbackData(endpoint) {
+  const lsData = {
+    'users': JSON.parse(localStorage.getItem("users")) || [],
+    'xp': JSON.parse(localStorage.getItem("xpData")) || {},
+    'clicked': JSON.parse(localStorage.getItem("clickedData")) || {}
+  };
+  
+  return lsData[endpoint] || {};
+}
+
+/* Load all data */
+async function loadData() {
+  try {
+    const [usersResponse, xpResponse] = await Promise.all([
+      apiCall('users'),
+      apiCall('xp')
+    ]);
+    
+    users = usersResponse;
+    xpData = xpResponse.xp || {};
+    clickedData = xpResponse.clicked || {};
+    
+    renderProfile();
+    renderUsers();
+  } catch (error) {
+    console.error('Failed to load data:', error);
+  }
+}
+
+/* Save XP */
+async function saveXP(username, xp) {
+  try {
+    await apiCall('xp', {
+      method: 'POST',
+      body: JSON.stringify({ username, xp })
+    });
+  } catch (error) {
+    // Fallback to localStorage
+    const xpData = JSON.parse(localStorage.getItem("xpData")) || {};
+    xpData[username] = xp;
+    localStorage.setItem("xpData", JSON.stringify(xpData));
+  }
+}
+
+/* Save clicked data */
+async function saveClicked(username, targetUser) {
+  try {
+    await apiCall('clicked', {
+      method: 'POST',
+      body: JSON.stringify({ username, targetUser })
+    });
+  } catch (error) {
+    // Fallback to localStorage
+    const clickedData = JSON.parse(localStorage.getItem("clickedData")) || {};
+    if (!clickedData[username]) clickedData[username] = [];
+    if (!clickedData[username].includes(targetUser)) {
+      clickedData[username].push(targetUser);
+    }
+    localStorage.setItem("clickedData", JSON.stringify(clickedData));
+  }
+}
+
+/* Save report */
+async function saveReport(reportData) {
+  try {
+    await apiCall('reports', {
+      method: 'POST',
+      body: JSON.stringify(reportData)
+    });
+    return true;
+  } catch (error) {
+    // Fallback to localStorage
+    const reports = JSON.parse(localStorage.getItem("reports")) || [];
+    reports.push({
+      ...reportData,
+      when: new Date().toISOString()
+    });
+    localStorage.setItem("reports", JSON.stringify(reports));
+    return true;
+  }
+}
+
+/* redirect if no current user */
+if(!currentUser){
+  window.location.href = "signup.html";
+}
+
+/* UI refs */
+const usersGrid = document.getElementById("usersGrid");
+const profileBox = document.getElementById("profileBox");
+const profilePhoto = document.getElementById("profilePhoto");
+const profileName = document.getElementById("profileName");
+const currentNameEl = document.getElementById("currentName");
+const xpEl = document.getElementById("currentXp");
+const rankEl = document.getElementById("currentRank");
+const payBtn = document.getElementById("payBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const toSignupBtn = document.getElementById("toSignupBtn");
+
+/* initialize clickedData for current user */
+if(!clickedData[currentUser.name]) {
+  clickedData[currentUser.name] = [];
+}
+
+/* XP defaults */
+if(!xpData[currentUser.name]) {
+  xpData[currentUser.name] = 0;
+}
+
+/* render profile */
+function renderProfile(){
+  profilePhoto.src = currentUser.photo || "";
+  profileName.textContent = currentUser.name || "";
+  profileBox.style.display = "flex";
+  currentNameEl.textContent = currentUser.name || "";
+  xpEl.textContent = xpData[currentUser.name] || 0;
+  rankEl.textContent = computeRank(xpData[currentUser.name] || 0);
+}
+
+/* simple rank calculation */
+function computeRank(xp){
+  if(xp >= 200) return "Elite";
+  if(xp >= 100) return "Advanced";
+  if(xp >= 50) return "Intermediate";
+  return "New";
+}
+
+/* render users grid */
+function renderUsers(){
+  usersGrid.innerHTML = "";
+
+  const sorted = users.slice().sort((a,b)=> (xpData[b.name]||0) - (xpData[a.name]||0));
+
+  sorted.forEach(u=>{
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="userinfo">
+        <img src="${u.photo || 'https://via.placeholder.com/72'}" alt="">
+        <div>
+          <div class="name">${u.name}</div>
+          <div class="small">XP: <span class="xp">${xpData[u.name]||0}</span></div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn btn-primary accountBtn">${clickedData[currentUser.name] && clickedData[currentUser.name].includes(u.name) ? 'Clicked' : 'Account'}</button>
+        <button class="btn btn-report reportBtn">Report</button>
+      </div>
+    `;
+
+    const accountBtn = card.querySelector(".accountBtn");
+    const reportBtn = card.querySelector(".reportBtn");
+
+    if(u.name === currentUser.name){
+      accountBtn.disabled = true;
+      accountBtn.style.opacity = 0.6;
+      reportBtn.style.display = "none";
+    } else {
+      if(clickedData[currentUser.name] && clickedData[currentUser.name].includes(u.name)){
+        accountBtn.disabled = true;
+        accountBtn.classList.add('btn-clicked');
+      }
+      accountBtn.addEventListener("click", async ()=>{
+        // open user URL secretly
+        if(u.url){
+          window.open(u.url, "_blank");
+        }
+
+        // give XP to the clicking user
+        if(!(clickedData[currentUser.name] && clickedData[currentUser.name].includes(u.name))){
+          xpData[currentUser.name] = (xpData[currentUser.name]||0) + 1;
+          await saveXP(currentUser.name, xpData[currentUser.name]);
+
+          if(!clickedData[currentUser.name]) clickedData[currentUser.name] = [];
+          clickedData[currentUser.name].push(u.name);
+          await saveClicked(currentUser.name, u.name);
+
+          renderUsers();
+          renderProfile();
+        }
+      });
+
+      reportBtn.addEventListener("click", async ()=>{
+        const reason = prompt("Report " + u.name + " — enter reason:");
+        if(reason && reason.trim()){
+          await saveReport({ 
+            reported: u.name, 
+            reporter: currentUser.name, 
+            reason: reason.trim() 
+          });
+          alert("Report submitted.");
+        }
+      });
+    }
+
+    usersGrid.appendChild(card);
+  });
+}
+
+/* Pay button → go to payment.html */
+payBtn.addEventListener("click", ()=>{
+  localStorage.setItem("pendingPaymentUser", JSON.stringify(currentUser));
+  window.location.href = "payment.html";
+});
+
+/* Signup */
+toSignupBtn.addEventListener("click", ()=>{
+  window.location.href = "signup.html";
+});
+
+/* Logout */
+logoutBtn.addEventListener("click", ()=>{
+  localStorage.removeItem(LS_CURRENT);
+  alert("Logged out");
+  window.location.href = "signup.html";
+});
+
+/* initial render */
+loadData();
+</script>
+</body>
+</html>
